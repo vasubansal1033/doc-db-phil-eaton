@@ -23,7 +23,7 @@ const (
 func (s *Server) addDocument(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	decoder := json.NewDecoder(r.Body)
 
-	var document map[string]interface{}
+	var document map[string]any
 	err := decoder.Decode(&document)
 	if err != nil {
 		jsonResponse(w, nil, err)
@@ -38,19 +38,50 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request, _ httproute
 		return
 	}
 
-	s.db.Set([]byte(id), documentBytes, &pebble.WriteOptions{})
+	err = s.db.Set([]byte(id), documentBytes, &pebble.WriteOptions{})
 	if err != nil {
 		jsonResponse(w, nil, err)
 		return
 	}
 
-	jsonResponse(w, map[string]interface{}{
+	jsonResponse(w, map[string]any{
 		"id": id,
 	}, nil)
 }
 
-func jsonResponse(w http.ResponseWriter, body map[string]interface{}, err error) {
-	data := map[string]interface{}{
+func (s *Server) searchDocument(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+}
+
+func (s *Server) getDocument(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	id := params.ByName("id")
+
+	document, err := s.getDocumentById([]byte(id))
+	if err != nil {
+		jsonResponse(w, nil, err)
+		return
+	}
+
+	jsonResponse(w, map[string]any{
+		"document": document,
+	}, nil)
+}
+
+func (s *Server) getDocumentById(id []byte) (map[string]any, error) {
+	valueBytes, closer, err := s.db.Get([]byte(id))
+	if err != nil {
+		return nil, err
+	}
+
+	defer closer.Close()
+
+	var document map[string]any
+	err = json.Unmarshal(valueBytes, &document)
+
+	return document, err
+}
+
+func jsonResponse(w http.ResponseWriter, body map[string]any, err error) {
+	data := map[string]any{
 		"body":   body,
 		"status": "ok",
 	}
@@ -68,14 +99,6 @@ func jsonResponse(w http.ResponseWriter, body map[string]interface{}, err error)
 	if err != nil {
 		panic(err)
 	}
-}
-
-func (s *Server) searchDocument(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	panic("unimplemented")
-}
-
-func (s *Server) getDocument(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	panic("unimplemented")
 }
 
 func newServer(databaseFile string, port string) (*Server, error) {
