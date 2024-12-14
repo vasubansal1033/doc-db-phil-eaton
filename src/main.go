@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -19,7 +21,53 @@ const (
 )
 
 func (s *Server) addDocument(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	panic("unimplemented")
+	decoder := json.NewDecoder(r.Body)
+
+	var document map[string]interface{}
+	err := decoder.Decode(&document)
+	if err != nil {
+		jsonResponse(w, nil, err)
+		return
+	}
+
+	id := uuid.New().String()
+
+	documentBytes, err := json.Marshal(document)
+	if err != nil {
+		jsonResponse(w, nil, err)
+		return
+	}
+
+	s.db.Set([]byte(id), documentBytes, &pebble.WriteOptions{})
+	if err != nil {
+		jsonResponse(w, nil, err)
+		return
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"id": id,
+	}, nil)
+}
+
+func jsonResponse(w http.ResponseWriter, body map[string]interface{}, err error) {
+	data := map[string]interface{}{
+		"body":   body,
+		"status": "ok",
+	}
+
+	if err != nil {
+		data["status"] = "error"
+		data["error"] = err.Error()
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(data)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (s *Server) searchDocument(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
