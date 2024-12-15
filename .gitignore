@@ -1,3 +1,4 @@
 main
 doc_db.data/*
+doc_db.dataindex/*
 movies.json
